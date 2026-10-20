@@ -1,0 +1,7 @@
+# Approved-model policy component (Phase 2 format).
+# Strict by default; relaxation needs an explicit higher-layer policy.
+
+reason = "corporate approved catalog (fixture)"
+strict = true
+allowed = ["big", "smart"]
+subagent_model = "big"

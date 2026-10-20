@@ -1,0 +1,23 @@
+kind = "source"
+schema = 99
+
+[package]
+name = "broken!!"
+
+[[source]]
+name = "x"
+git = ""
+ref = ">=x"
+layer = "nonsense"
+
+[profiles.p]
+rule = ["does-not-exist"]
+widgets = ["whatever"]
+
+[component.widget."w1"]
+path = ""
+
+[component.rule."r1"]
+path = "missing.md"
+targets = ["frobnitz"]
+capabilities = ["magic"]

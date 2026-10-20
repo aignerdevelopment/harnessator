@@ -1,0 +1,487 @@
+.Dd $Mdocdate$
+.Dt HARNESSATOR 1
+.Os
+.Sh NAME
+.Nm harnessator
+.Nd package manager and policy layer for AI coding harness configuration
+.Sh SYNOPSIS
+.Nm
+.Ar command
+.Op Ar flags
+.Op Ar args
+.Pp
+where
+.Ar command
+is one of:
+.Ic version , validate , init , setup , update , verify , doctor ,
+list , search , scan , harvest , info , why , enable , disable ,
+.Cm "source add" ,
+.Cm "source remove" ,
+.Cm "source list" ,
+.Cm "source new" ,
+.Cm "provider use" ,
+.Cm "provider show" ,
+.Cm "provider none" ,
+.Cm "dev" ,
+.Cm "dev status" ,
+.Cm "dev sync" ,
+.Cm "dev drop" ,
+.Ic contribute , serve , tui
+.Sh DESCRIPTION
+.Nm
+configures AI coding harnesses
+.Pq opencode , Claude Code , Codex , Antigravity , pi , Cursor
+from governed git sources: rules, skills, prompts, workflows, sub-agents,
+hooks, tools, MCP servers and provider/model policies.
+The registry is git - access control, review and provenance come from your
+forge; there is no server component.
+.Pp
+Project configuration
+.Pq Xr harnessator.toml 5
+declares sources and selections;
+.Nm Cm setup
+resolves refs to exact commits, exports read-only checkouts into the
+per-user store
+.Pa ~/.harnessator ,
+computes a deterministic plan with provenance, renders each target
+harness's native layout, and writes the committed lockfile
+.Pq Xr harnessator.lock 5 .
+.Nm Cm verify
+is the CI gate that fails when anything diverges from the lock.
+.Ss Concepts
+.Bl -tag -width Ds
+.It Components
+typed units addressed as
+.Dq Ar source:category/name :
+rule, skill, prompt, workflow, agent, hook, tool, mcp, provider, policy.
+.It Sources
+git repositories with a
+.Em harnessator.toml
+manifest of kind
+.Dq source .
+A source may import child sources, so a corporate root can form the entry
+point of a source graph.
+.It Layers
+corporate, team, project, personal - each adds sources and
+refines selections; every enablement carries provenance
+queryable with
+.Nm Cm why .
+.It Pins
+refs in the config are tag ranges or branches; the lock records resolved
+commit SHAs and sha256 content digests per component, making config drift
+reviewable in ordinary git history.
+.It Adapters
+per-harness renderers. A component type without a native slot on a target
+is reported as a loud skip, never silently dropped.
+.El
+.Sh COMMANDS
+.Bl -tag -width Ds
+.It Cm version
+Print
+.Nm
+and its build-stamped version.
+.It Cm validate Op Fl -check-paths Ar file ...
+Schema-check source manifests and project configs; reports all problems at
+once; rejects unknown keys.
+With no arguments, validates
+.Pa ./harnessator.toml .
+.Bl -tag -width Ds
+.It Fl -check-paths
+verify that component paths exist relative to each manifest.
+.El
+.It Cm init Op Fl -targets Ar list Op Fl -source Ar url ... Fl -ref Ar expr Op Fl -manifest Ar path Fl -force Op Ar dir
+Create a managed project: canonical
+.Pa harnessator.toml ,
+a
+.Pa .gitignore
+block for generated artifacts, and
+.Pa AGENTS.md / CLAUDE.md
+redirect entry files if absent.
+.Bl -tag -width Ds
+.It Fl -targets Ar list
+comma-separated harness targets
+(default
+.Dq opencode,claude ) .
+.It Fl -source Ar urls
+comma-separated git source URLs; names default to repo basenames.
+.It Fl -ref Ar expr
+ref expression for
+.Fl -source
+(default
+.Dq main ) .
+.It Fl -force
+overwrite an existing config.
+.El
+.It Cm setup Op Fl -dry-run Op Fl -config Ar path
+Fetch, resolve, export, plan, materialize, write the lock.
+Refuses to write the lock while any source is in dev mode.
+Ends with a restart-your-harness notice.
+.Bl -tag -width Ds
+.It Fl -dry-run
+print plan and would-write report; touch nothing.
+.El
+.It Cm update
+alias of
+.Cm setup
+(re-resolving refs is the update).
+.It Cm verify Op Fl -config Ar path
+Compare on-disk state to
+.Pa harnessator.lock :
+checkout markers, per-component content digests;
+dev-mode sources skipped.
+Exit 1 on drift - the CI gate.
+.It Cm check Op Fl -json Op Fl -quiet Op Fl -install-hook Ar hook Op Fl -remove-hook Ar hook Op Fl -config Ar path
+Offline enforcement gate: strict model policy, lock
+digest integrity and installed-state drift in one command with a clean
+exit code - lock pins only, never fetches.
+.Fl -json
+emits
+.Dq ok / problems / warnings
+as one machine-readable object;
+.Fl -quiet
+is silent unless failing.
+.Fl -install-hook Ar hook
+(pre-commit or pre-push) installs a managed marker block in
+.Pa .git/hooks/
+that runs
+.Cm check Fl -quiet
+and self-skips in unmanaged repos;
+.Fl -remove-hook
+deletes only harnessator-installed hooks, refusing foreign files.
+.It Cm doctor Op Fl -config Ar path
+verify plus lock freshness, adapter-spec diffs
+(missing, wrong, stray or blocked links) and gitignore hygiene.
+.It Cm list Op Fl -all Op Fl -config Ar path
+Enabled components with provenance;
+.Fl -all
+also lists skips with reasons.
+.It Cm search Ar text Op Fl -config Ar path
+Substring search over fetched manifests; each hit prefixed
+.Ic on
+or
+.Ic off ;
+exit 1 when nothing matched.
+.It Cm index build
+Re-index the current project's pinned sources into the store-level
+registry index
+.Pa ~/.harnessator/cache/index.json ;
+entries of other sources are kept.
+.It Cm index search Op Fl -category Ar cat Op Ar text
+Query the registry index without project context - no lock, no network.
+Exit 1 when nothing matched.
+.It Cm index show Ar ref
+Full provenance (source, git, pin, path, tags, license) of one indexed
+component.
+.It Cm mcp serve Op Fl -config Ar path
+Read-only MCP server (JSON-RPC 2.0 over stdio) exposing the current
+project's configuration to agents:
+.Ic search , Ic list_active , Ic why ,
+.Ic component_content , Ic policy_status .
+Component reads come from the pinned store checkout the lock digests
+cover; mutations stay CLI-only.
+.It Cm scan Op Fl -json Ar path ...
+Read-only cold-start report over project trees or loose directories
+(default
+.Pa . ) :
+components found via the adapters' Recognize layer (the read-side
+counterpart of the writers - symmetry-tested), listed with category, id
+and content digest; symlinked entries classified
+.Ic managed Ns / Ic external
+and never harvested; sanitize hits (secret shapes, personal paths) as
+masked
+.Em file:line
+findings.
+Across roots, same-id components cluster as
+.Ic identical
+(dedupe candidates) or
+.Dv DIVERGENT
+(the stale-copy problem, visible). Config-embedded components are
+detected too: MCP servers in any harness style (canonicalized before
+digesting) and claude hook scripts referenced from settings files.
+.Fl json
+emits the stable versioned envelope
+.Pq schema , generated , roots[] , clusters[]
+designed to also feed a future
+.Em status
+command and the web-GUI sprawl view without migration.
+Exit 0 whenever the scan completed; findings are not failures.
+.It Cm harvest Op Fl -name Ar id Op Fl -into Ar dir Op Fl -prefer Ar how Op Fl -dry-run Op Fl -allow-hits Op Fl -commit Ar dir Op Fl -adopt Ar path ...
+Publishes scanned candidates as a validated source repo. Guarantees: inputs never modified; all-or-nothing -
+divergent copies, sanitize findings and invalid ids abort before any
+write. Identical copies merge;
+.Fl -prefer Ar newest|largest
+resolves divergent ones. A
+.Fl -into Ar dir
+re-run is idempotent (digest-matching components skip, the manifest stays
+byte-stable). Lifted cursor rules keep their frontmatter as manifest
+hints (exact round-trip with the adapter); MCP servers embedded in any
+harness config style (.mcp.json, .cursor/mcp.json,
+.agents/mcp_config.json, opencode.json, codex config.toml) are
+normalized, merged into the source's shared mcp/servers.json with all
+per-target shapes regenerated, and deduped across styles by digest;
+claude hook commands referencing in-project scripts lift the script to
+.Ic hooks/shared/
+with a rewritten template. New sources get
+.Em git init
+and a first commit; manifest components receive an
+.Ic origin
+provenance field, and fresh sources get a
+.Ic default
+profile selecting everything.
+Entries matching no rule are listed in
+.Pa harvest-report.json
+(with external symlinks as context); the guided tail
+.Pq the harnessator-harvest skill
+works through them and ratifies with
+.Fl commit Ar dir ,
+which re-validates the source and commits it - agent drafts, tool judges.
+.Fl adopt
+additionally turns each donor project into a consumer of the published
+source: its originals are replaced by managed links only after a digest
+proves byte-identical content (divergent ones are kept and reported;
+existing generated paths are backed up as
+.Pa *.pre-adopt ) .
+.Bl -tag -width Ds
+.It Fl -name Ar id
+new source id, created as
+.Pa ./ Ns Ar id
+(a path is accepted; its base becomes the id).
+.It Fl -into Ar dir
+extend an existing source directory.
+.It Fl -prefer Ar how
+resolve divergent copies:
+.Ar newest
+or
+.Ar largest .
+.It Fl -dry-run
+print the write plan; write nothing.
+.It Fl -allow-hits
+publish despite sanitize findings (review them first).
+.El
+.It Cm info Ar ref Op Fl -config Ar path
+Full details of one component: pin, absolute store path, provenance,
+targets, tags, capabilities, description.
+.It Cm layers Op Fl -config Ar path
+Show the scope-layer files the project resolves from: each path, present
+or absent, and what it contributes (sources, templates, includes,
+provider, policy, corporate markers). The merge, made visible.
+.It Cm why Ar ref Op Fl -config Ar path
+Why a component is enabled or skipped, incl. which template selects it.
+.It Cm enable Ar ref Op Fl -layer Ar name Op Fl -config Ar path
+Add a template
+.Pq Ar source:profile
+or a
+.Ic select
+include
+.Pq Ar cat/id No or Ar source:cat/id
+and rewrite the config canonically.
+Run
+.Cm setup
+afterwards.
+.It Cm disable Ar ref Op Fl -layer Ar name Op Fl -config Ar path
+Remove a template or add an exclude.
+Refuses components marked
+.Em always .
+.It Cm "source add" Ar url Op Fl -ref Ar expr Op Fl -name Ar id Op Fl -layer Ar name Op Fl -manifest Ar path
+Declare a git source
+.Pq corporate|team|project|personal .
+.Fl manifest Ar path
+selects a sub-directory manifest for multi-source repos: source identity
+becomes the triple
+.Pa (git , ref , manifest) ,
+so one repository can host several independent sources
+.Pq e.g. harnessator's own skills live in a source/ sub-directory .
+Duplicate names are rejected.
+.It Cm "source remove" Ar name
+Undeclare a source; run
+.Cm setup
+to reconcile.
+.It Cm "source list"
+Declared sources with resolved pins.
+.It Cm "source new" Fl -name Ar id Op Fl -dir Ar path Op Fl -remote Ar kind Op Fl -description Ar text
+Scaffold a new component source: self-validating manifest, category
+directories, git init and first commit.
+.Fl -remote
+is one of
+.Ic gitlab , azure , github
+and creates the repository via
+.Ic glab , az , gh
+when installed.
+.It Cm "provider use" Ar source:provider-id | Cm "provider show" | Cm "provider none"
+Select, inspect or clear the provider profile
+(see Sx GOVERNANCE ) .
+.It Cm dev Ar target Op Fl -branch Ar name
+Start an isolated dev overlay of
+.Ar target
+.Pq a source, or Ar source:cat/id
+for this project: a clone of the store checkout on its own branch, wired
+into
+.Em this
+project's links by the next
+.Cm setup ;
+all other projects keep the read-only pin.
+.Bl -tag -width Ds
+.It Fl -branch Ar name
+overlay branch
+(default
+.Dq harnessator/dev/<user> ) .
+.El
+.It Cm "dev status"
+List overlays with branch and dirty state.
+.It Cm "dev sync" Op Ar source
+Fetch and rebase each overlay onto its upstream branch
+(branch refs only).
+.It Cm "dev drop" Ar source Op Fl -force
+Remove an overlay binding and clone; refuses dirty or unpushed work
+unless
+.Fl -force .
+.It Cm contribute Op Ar source Op Fl -title Ar t Op Fl -body Ar b Op Fl -target-branch Ar b
+For active overlays: verify commits exist (native git),
+.Dq git push -u origin Ar branch ,
+then open the merge request via
+.Ic glab / az / gh
+if installed, else print the exact forge URL.
+After merge,
+.Cm update
+pulls it into your pinned checkout.
+.It Cm serve Op Fl -port Ar p Op Fl -config Ar path
+Localhost web GUI bound to 127.0.0.1 only (loopback is the trust
+boundary): plan, pins, governance, dev state, warnings, and buttons for
+.Cm setup / update / verify / doctor
+with their full reports.
+API:
+.Pa /api/state ,
+.Pa /api/action .
+.Bl -tag -width Ds
+.It Fl -port Ar p
+port to bind
+(default 7070 ) .
+.El
+.It Cm tui Op Fl -config Ar path
+Interactive terminal menu:
+.Ic s etup , u pdate , v erify , d octor , l ist ,
+.Ic e nable
+.Ar ref ,
+.Ic x
+disable
+.Ar ref ,
+.Ic w
+hy
+.Ar ref ,
+.Ic q
+uit .
+.El
+.Sh GOVERNANCE
+Provider components define an approved model catalog with aliases; policy
+components restrict it (
+.Em strict
+by default) and may pin sub-agent models.
+Selection lives in
+.Pa harnessator.toml
+and is checked inside every command: strict violations block setup, list,
+doctor alike; soft ones warn.
+Rendering: opencode gets a provider block and a policy-filtered model
+list; Claude Code gets an env block including
+.Ev CLAUDE_CODE_SUBAGENT_MODEL ;
+codex gets
+.Ic model_providers
+in the managed block; pi, cursor and antigravity report loud skips.
+Secret
+.Em values
+never appear in configs or generated files - only environment variable
+names.
+.Sh CONFIGURATION
+.Bl -tag -width Ds
+.It Xr harnessator.toml 5
+project config and source manifests (both, discriminated by
+.Ic kind ) .
+.It Xr harnessator.lock 5
+generated lockfile: pins and content digests.
+.It Pa .harnessator/
+per-project generated dir:
+.Pa active.md
+(the agent-facing index),
+.Pa active.json ,
+.Pa dev.json ,
+tool and pi-package link farms. Gitignored.
+.It Pa ~/.harnessator/
+per-user store: clones, pinned checkouts, dev overlays,
+.Pa personal.toml
+fallback layer, cache. Relocate with
+.Ev HARNESSATOR_HOME .
+.El
+.Sh ENVIRONMENT
+.Bl -tag -width Ds
+.It Ev HARNESSATOR_HOME
+store directory override (default
+.Pa ~/.harnessator ) .
+.It Ev LITELLM_API_KEY No and friends
+provider
+.Ic auth_env
+names (harness-rendered, e.g. codex
+.Ic env_key )
+- consumed by the harnesses, never by
+.Nm .
+.El
+Git authentication uses stock mechanisms (credential helper, SSH agent,
+contextual PATs); private https sources generally need
+.Dq git config --global credential.helper store
+or an SSH URL.
+.Sh EXIT STATUS
+.Bl -tag -width Ds -compact
+.It 0
+success.
+.It 1
+failure - validation, policy violation, drift, git error.
+.It 2
+usage error.
+.El
+.Sh EXAMPLES
+Govern a new project:
+.Bd -literal -offset indent
+harnessator init --source https://git.example.com/ai/corp-tools.git \
+    --ref '~v1' --targets opencode,claude .
+harnessator enable corp-tools:default
+harnessator setup
+harnessator doctor
+.Ed
+Improve a skill and upstream it:
+.Bd -literal -offset indent
+harnessator dev corp:skill/jira-issue
+harnessator setup
+$EDITOR ~/.harnessator/dev/corp/skills/jira-issue/SKILL.md
+git -C ~/.harnessator/dev/corp commit -am 'jira-issue: assert AC coverage'
+harnessator dev sync && harnessator contribute
+# ...merge...
+harnessator update
+harnessator dev drop corp
+.Ed
+CI gate:
+.Bd -literal -offset indent
+harnessator verify   # exit != 0 when anything diverges from harnessator.lock
+.Ed
+.Sh COMPATIBILITY
+MVP targets: opencode, claude, codex, antigravity, pi, cursor.
+Expansion targets (gemini, cline, copilot, windsurf) are planned; unknown
+targets fail validation.
+OS coverage: linux, macOS (symlinks) and Windows (junctions for
+directories, copies verified by digests for files).
+.Sh CAVEATS
+The
+.Cm tui
+is a first cut (plain menu, no full-screen redraw).
+Provider rendering for pi/cursor/antigravity is an explicit loud skip
+until their shapes are verified.
+Windows junction code is compile-verified only until a Windows runner
+exists.
+.Sh AUTHORS
+Written by Roland Aigner and the harnessator contributors.
+.Lk https://www.aignerdevelopment.com
+Source:
+.Lk https://harnessator.org
+.Sh "SEE ALSO"
+.Xr harnessator.toml 5 ,
+.Xr harnessator.lock 5 ,
+full usage manual in
+.Pa USAGE.md
+of the repository.

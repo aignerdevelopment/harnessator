@@ -1,0 +1,92 @@
+kind = "source"
+schema = 1
+
+# Test fixture: a source repo in harnessator's manifest format - a subset
+# mirroring the published seed corpus "agentictools".
+
+[package]
+name = "agentictools"
+description = "Central collection of agentic rules, skills, prompts, hooks, custom agents, workflows, MCP integrations and tools."
+version = "0.1.0"
+license = "MIT"
+homepage = "https://github.com/aignerdevelopment/agentictools"
+
+# Transitive source graph: a corporate root references child sources.
+[[source]]
+name = "corp-sub"
+git = "https://example.test/ai/sub-tools.git"
+ref = "~v1"
+layer = "corporate"
+
+[profiles.minimal]
+rule = ["00-agentictools-source-of-truth", "10-code-style"]
+
+[profiles.full]
+rule = ["*"]
+skill = ["example-skill"]
+mcp = ["example-remote"]
+tool = ["example-tool"]
+hook = ["shared-format"]
+agent = ["code-reviewer"]
+provider = ["litellm-demo"]
+policy = ["models-strict"]
+
+[profiles.max]
+rule = ["*"]
+skill = ["example-skill"]
+mcp = ["example-remote"]
+tool = ["example-tool"]
+provider = ["litellm-demo"]
+policy = ["models-strict"]
+
+[component.rule."00-agentictools-source-of-truth"]
+path = "rules/00-agentictools-source-of-truth.md"
+description = "Keep all agent configuration in the central repo; projects only reference it."
+tags = ["core", "always"]
+always = true
+
+[component.rule."10-code-style"]
+path = "rules/10-code-style.md"
+description = "General code style and editing conventions."
+tags = ["core", "style"]
+
+# Per-target adapter hints (spike result: cursor rules need frontmatter).
+[component.rule."10-code-style".hint.cursor]
+globs = ["**/*"]
+always-apply = false
+
+[component.skill."example-skill"]
+path = "skills/example-skill"
+description = "Template skill showing the SKILL.md layout."
+targets = ["claude", "opencode", "antigravity", "pi", "cursor"]
+
+[component.mcp."example-remote"]
+path = "mcp/servers.json"
+key = "example-remote"
+description = "Example remote MCP server (replace with a real one)."
+targets = ["claude", "opencode", "codex"]
+
+[component.tool."example-tool"]
+path = "tools/example-tool.ts"
+description = "Template custom opencode tool."
+targets = ["opencode"]
+capabilities = ["network"]
+
+[component.hook."shared-format"]
+path = "hooks/shared/format.sh"
+description = "Run the project formatter after edits."
+targets = ["claude", "opencode"]
+
+[component.agent."code-reviewer"]
+path = "agents"
+description = "Read-only reviewer subagent (agents/<target>/<id>.md)."
+targets = ["claude", "opencode"]
+
+[component.provider."litellm-demo"]
+path = "providers/litellm-demo.toml"
+description = "Example LiteLLM endpoint profile (env keys only, never values)."
+capabilities = ["network"]
+
+[component.policy."models-strict"]
+path = "policies/models-strict.toml"
+description = "Approved model catalog; strict by default, overridable via explicit policy."
