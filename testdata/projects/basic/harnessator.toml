@@ -1,0 +1,36 @@
+kind = "project"
+schema = 1
+
+# Test fixture: a corporate-ish consuming project.
+# NOTE: top-level scalars must precede [[source]] tables — TOML would
+# otherwise nest them into the last source entry (config.Load rejects that).
+
+targets = ["opencode", "claude", "pi"]
+templates = ["agentictools:minimal"]
+
+[[source]]
+name = "agentictools"
+git = "https://github.com/aignerdevelopment/agentictools.git"
+ref = "~v0.1"
+
+[[source]]
+name = "devops"
+git = "https://git.acme.corp/ai/devops-tools.git"
+ref = "main"
+layer = "team"
+
+[select.skill]
+include = ["agentictools:example-skill"]
+
+[select.rule]
+exclude = ["10-code-style"]
+
+[provider]
+profile = "agentictools:provider/litellm-demo"
+
+[policy]
+profiles = ["agentictools:policy/models-strict"]
+
+[corporate]
+allowlist = ["https://github.com/aignerdevelopment/**", "https://git.acme.corp/**"]
+lock-mode = "strict"

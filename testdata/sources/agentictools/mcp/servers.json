@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "example-remote": {
+      "config": {
+        "claude": { "url": "https://example.test/mcp" },
+        "opencode": { "type": "remote", "url": "https://example.test/mcp" },
+        "codex": { "url": "https://example.test/mcp" }
+      }
+    }
+  }
+}
