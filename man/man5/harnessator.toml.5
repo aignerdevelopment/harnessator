@@ -1,0 +1,262 @@
+.Dd $Mdocdate$
+.Dt HARNESSATOR.TOML 5
+.Os
+.Sh NAME
+.Nm harnessator.toml
+.Nd harnessator project configuration and source manifests
+.Sh DESCRIPTION
+.Nm
+files come in two kinds, discriminated by the mandatory
+.Ic kind
+key.
+Top-level scalars must precede table arrays
+.Pq the loader rejects the TOML scoping trap explicitly .
+Unknown or misplaced keys fail validation; comments are supported
+(though commands that rewrite project configs re-render canonically and
+drop hand-written comments).
+.Sh PROJECT CONFIG (kind = "project")
+Committed at the project root; its directory is the project root for all
+generated artifacts.
+.Bl -tag -width Ds
+.It Ic kind = Nq project , Ic schema = Ar int
+required; schema is 1 in this release.
+.It Ic targets = Ar list
+harnesses to render:
+.Ar opencode , claude , codex , antigravity , pi , cursor
+(MVP) or planned
+.Ar gemini , cline , copilot , windsurf .
+Non-empty, unique.
+.It Ic templates = Ar list
+profile references
+.Dq Ar source:profile ,
+expanded in order.
+Unknown profiles are validation errors.
+.It Ic personal = Ar path
+optional local fallback for the personal layer when no personal git
+source is configured.
+.It Xo Ic [[source]] No blocks:
+.Ic name Ar id ,
+.Ic git Ar url ,
+.Ic ref Ar expr ,
+.Ic layer Ar name Ic optional Xo
+.Pq corporate|team|project|personal
+.Xc ,
+.Ic manifest Ar path Ic optional
+.Xc
+declared sources.
+Names are unique ids; refs are tag ranges or branch names
+(see Xr harnessator 1 , Sx DESCRIPTION ) .
+.Ic manifest
+selects a sub-directory manifest for multi-source repos
+.Pq repo-relative dir or file ,
+default
+.Pa harnessator.toml
+at the checkout root ) ;
+source identity is the triple
+.Pa (git , ref , manifest) .
+.It Ic [select.<category>]
+per-category refinement:
+.Ic include Ar list ,
+.Ic exclude Ar list .
+Entries:
+.Dq Ar cat-scope ids
+bare
+.Pq binds to the first declaring source, sorted by name ,
+qualified
+.Dq Ar source:id ,
+or
+.Dq *
+(everything in the category).
+Excludes apply last and cannot remove
+.Em always
+rules.
+.It Ic [provider]
+.Ic profile = Nq source:provider/id
+- the approved model catalog to render.
+.It Ic [policy]
+.Ic profiles = Ar list
+- policy components in override order (later wins per key).
+Strict enforcement is default.
+.It Ic [corporate]
+.Ic allowlist Ar list No of git URL patterns Pq trailing ** wildcard ,
+.Ic "lock-mode" = Nq strict | soft .
+Advisory client-side; enforced by
+.Nm Cm verify
+in CI (policy + CI, per governance model).
+.El
+.Ss Example
+.Bd -literal -offset indent
+kind = "project"
+schema = 1
+
+targets   = ["opencode", "claude"]
+templates = ["corp:default", "devops:jira-flow"]
+
+[[source]]
+name  = "corp"
+git   = "https://git.example.com/ai/corp-tools.git"
+ref   = "~v1.2"
+layer = "corporate"
+
+[[source]]
+name  = "roland"
+git   = "https://git.example.com/users/roland/tools.git"
+ref   = "main"
+layer = "personal"
+
+[select.skill]
+exclude = ["corp:slack-skill"]
+
+[provider]
+profile = "corp:provider/litellm-acme"
+
+[policy]
+profiles = ["corp:policy/models-approved"]
+
+[corporate]
+allowlist = ["https://git.example.com/**"]
+lock-mode = "strict"
+.Ed
+.Sh "SOURCE MANIFEST (kind = source)"
+Committed at the root of every component source repository; registers its
+components, profiles and imported child sources.
+.Bl -tag -width Ds
+.It Ic kind = Nq source , Ic schema = Ar 1
+required.
+.It Ic [package]
+.Ic name Ar id
+(required - the id refs use),
+.Ic description ,
+.Ic version
+(informational; releases are git tags),
+.Ic license ,
+.Ic homepage .
+.It Xo Ic [[source]] No blocks
+.Xc
+imported child sources, same fields as project sources - corporate roots
+form source graphs.
+.It Ic [profiles.<name>]
+category arrays
+.Pq singular names:
+rule , skill , prompt , workflow , agent , hook , tool , mcp , provider ,
+policy .
+Values are component ids or
+.Dq * .
+.It Xo Ic [component.<category>."<id>"] No blocks:
+.Ic path Ar rel ,
+.Ic key Ar string No optional ,
+.Ic description ,
+.Ic tags ,
+.Ic targets ,
+.Ic requires ,
+.Ic capabilities ,
+.Ic always Ic bool No optional ,
+.Ic origin Ar string No optional ,
+.Ic hint.<target> tables No optional
+.Xc
+Component registry.
+.Ic path
+is repo-relative (file for prompt/workflow/rule/hook/tool-file;
+directory for skill, or a convention dir for agent:
+.Pa agents/<target>/<id>.md ) .
+.Ic key
+selects one entry inside a shared file (mcp
+.Pa servers.json ) .
+.Ic targets
+empty = every harness;
+.Ic capabilities
+from
+.Ar network|exec|fs ;
+.Ic requires
+names harness features for the capability matrix;
+.Ic always
+is rules-only and makes the component unexcludable.
+.Ic hint.<target>
+carries adapter data, e.g.
+.Ic hint.cursor No globs = Pq Ar patterns ,
+.Ic "hint.cursor always-apply" Ar bool .
+.Ic origin
+records where a component was harvested from (set by
+.Cm harvest ;
+not a hand-edited field).
+.El
+.Ss "Example"
+.Bd -literal -offset indent
+kind = "source"
+schema = 1
+
+[package]
+name        = "corp-tools"
+description = "Corporate best-practice agent configuration"
+license     = "Apache-2.0"
+
+[profiles.default]
+rule  = ["security-baseline"]
+skill = ["*"]
+
+[component.rule."security-baseline"]
+path        = "rules/security-baseline.md"
+description = "Baseline security rules for all repos."
+tags        = ["core", "security"]
+always      = true
+
+[component.rule."security-baseline".hint.cursor]
+globs        = ["**/*.go"]
+always-apply = true
+
+[component.mcp."jira"]
+path = "mcp/servers.json"
+key  = "jira"
+.Ed
+.Sh "PROVIDER PROFILE (component file, providers/*.toml)"
+.Bl -tag -width Ds
+.It Ic name Ar id , Ic default_model Ar alias|id
+catalog identity and the rendered default.
+.It Ic auth_env Ar NAME
+env var NAME fallback for endpoints without their own override.
+.It Ic [models]
+alias = concrete model id pairs - the approved catalog.
+Alias and concrete spellings match each other in policies.
+.It Xo Ic [styles.FAMILY] :
+.Ic base_url , Ic auth_env Pq optional override
+.Xc
+one endpoint per API family - at least one required.
+Known families:
+.Ic openai-compatible ,
+.Ic anthropic-compatible ,
+.Ic openai-responses .
+Governance dialects pick the first family their harness speaks
+(opencode prefers
+.Ic openai-compatible ,
+claude only
+.Ic anthropic-compatible ,
+codex the OpenAI families),
+so a gateway exposing several families at different paths renders to each
+harness natively.
+The old product-keyed blocks
+.Pq Ic [opencode] , Ic [claude] , Ic [codex]
+are rejected as unknown keys.
+.El
+Secret values never appear in these files - env var names only.
+.Sh "POLICY (component file, policies/*.toml)"
+.Bl -tag -width Ds
+.It Ic strict Ar bool
+default true; blocks setup on violations when true, warns otherwise.
+.It Ic allowed Ar list
+aliases or concrete ids admitted by the selected provider; every entry
+must exist in the catalog.
+.It Ic subagent_model Ar alias|id
+pinned model for sub-agents (e.g. Claude Code
+.Ev CLAUDE_CODE_SUBAGENT_MODEL ) .
+.It Ic reason Ar text
+human note shown in
+.Nm Cm provider show .
+.El
+.Pp
+Policies listed in
+.Ic [policy].profiles
+merge left to right, later wins per key - every relaxation stays a named
+component with provenance.
+.Sh "SEE ALSO"
+.Xr harnessator 1 ,
+.Xr harnessator.lock 5
