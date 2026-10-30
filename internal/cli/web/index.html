@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>harnessator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: dark; --fg:#dcdcdc; --mut:#8a8a8a; --acc:#61afef; --ok:#98c379; --warn:#e5c07b; --err:#e06c75; --bg:#1e1e22; --panel:#26262c; }
+  * { box-sizing: border-box; }
+  body { font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; background:var(--bg); color:var(--fg); margin:0; padding:1.5rem; }
+  h1 { font-size:1.1rem; margin:0 0 .2rem; } h2 { font-size:.85rem; color:var(--mut); text-transform:uppercase; margin:1.2rem 0 .4rem; }
+  .sub { color:var(--mut); font-size:.8rem; margin-bottom:1rem; }
+  .row { display:flex; gap:.5rem; flex-wrap:wrap; margin:.6rem 0; }
+  button { background:var(--panel); color:var(--fg); border:1px solid #3d3d45; border-radius:4px; padding:.4rem .9rem; cursor:pointer; font:inherit; }
+  button:hover { border-color:var(--acc); }
+  .panel { background:var(--panel); border:1px solid #3d3d45; border-radius:6px; padding:.8rem; margin:.4rem 0; }
+  table { border-collapse:collapse; width:100%; font-size:.82rem; }
+  td,th { text-align:left; padding:.18rem .5rem; vertical-align:top; }
+  th { color:var(--mut); font-weight:normal; }
+  .tag { display:inline-block; border-radius:3px; padding:0 .4rem; font-size:.72rem; margin-right:.3rem; }
+  .on { background:#2d4a2d; color:var(--ok);} .off { background:#4a2d2d; color:var(--err);} .pin { background:#2d3a4a; color:var(--acc);}
+  .warn { color:var(--warn); } .err { color:var(--err); white-space:pre-wrap; }
+  pre { white-space:pre-wrap; font-size:.8rem; margin:.2rem 0; }
+  .cat { color:var(--mut); }
+</style>
+</head>
+<body>
+<h1>harnessator</h1>
+<div class="sub" id="meta">loading…</div>
+<div class="row">
+  <button onclick="action('setup')">setup</button>
+  <button onclick="action('update')">update</button>
+  <button onclick="action('verify')">verify</button>
+  <button onclick="action('doctor')">doctor</button>
+  <button onclick="load()">refresh</button>
+</div>
+<div id="output" class="panel" hidden></div>
+<h2>sources / pins</h2><div class="panel" id="pins"></div>
+<h2>governance</h2><div class="panel" id="gov"></div>
+<h2>plan</h2><div class="panel" id="plan"></div>
+<h2>skips</h2><div class="panel" id="skips"></div>
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function load() {
+  const r = await fetch('/api/state');
+  const st = await r.json();
+  if (st.error) { document.getElementById('meta').textContent = 'error: ' + st.error; return; }
+  document.getElementById('meta').textContent =
+    st.project + ' · targets: ' + (st.targets||[]).join(', ') +
+    (st.fromLock ? ' · locked' : ' · fetched') +
+    (st.lockComponents ? ' · ' + st.lockComponents + ' pinned components' : '');
+  let pins = '';
+  for (const [name, p] of Object.entries(st.pins||{})) {
+    pins += `<div><span class="tag pin">${esc(name)}</span> ${esc(p.git)} <span class="cat">${esc(p.range)} → ${esc(p.resolved)} (${esc(p.sha)})</span>` +
+      (st.dev && st.dev[name] ? ` <span class="tag off">DEV ${esc(st.dev[name])}</span>` : '') + `</div>`;
+  }
+  pins = pins || '<span class="cat">none</span>';
+  pins += (st.templates||[]).length ? `<div class="cat">templates: ${st.templates.map(esc).join(', ')}</div>` : '';
+  if ((st.warnings||[]).length) pins += st.warnings.map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join('');
+  document.getElementById('pins').innerHTML = pins;
+
+  let gov = '';
+  if (st.governance?.provider) {
+    const p = st.governance.provider;
+    gov += `<div><b>${esc(p.name)}</b> default=<span class="tag on">${esc(p.default)}</span></div><table><tr><th>alias</th><th>model</th></tr>` +
+      Object.entries(p.models||{}).map(([a,m]) => `<tr><td>${esc(a)}</td><td>${esc(m)}</td></tr>`).join('') + '</table>';
+  }
+  if (st.governance?.policy) {
+    const q = st.governance.policy;
+    gov += `<div class="cat">policy allowed: ${(q.allowed||[]).map(esc).join(', ')||'(all)'} · strict=${esc(q.strict)} · subagent=${esc(q.subagent)} · from ${(q.sources||[]).map(esc).join(', ')}</div>`;
+  }
+  document.getElementById('gov').innerHTML = gov || '<span class="cat">no provider/policy selected</span>';
+
+  const byCat = {};
+  for (const c of (st.enabled||[])) (byCat[c.Category] ??= []).push(c);
+  let plan = '';
+  for (const [cat, items] of Object.entries(byCat)) {
+    plan += `<div class="cat">${esc(cat)}</div>` + items.map(c =>
+      `<div>&nbsp;&nbsp;<span class="tag on">on</span><b>${esc(c.ID)}</b> <span class="cat">[${esc(c.Reason)}]</span> — ${esc(c.Desc)}</div>`).join('');
+  }
+  document.getElementById('plan').innerHTML = plan || '<span class="cat">nothing enabled</span>';
+
+  document.getElementById('skips').innerHTML = (st.skips||[]).map(c =>
+    `<div><span class="tag off">skip</span>${esc(c.ID)} <span class="cat">[${esc(c.Reason)}]</span></div>`).join('') || '<span class="cat">none</span>';
+}
+
+async function action(name) {
+  const box = document.getElementById('output');
+  box.hidden = false; box.textContent = 'running ' + name + '…';
+  const r = await fetch('/api/action', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({action:name})});
+  const res = await r.json();
+  box.innerHTML = `<div class="${res.ok ? '' : 'err'}">${res.ok ? '✓' : '✗'} ${esc(name)}</div><pre>${esc(res.output)}</pre>`;
+  load();
+}
+load();
+</script>
+</body>
+</html>
