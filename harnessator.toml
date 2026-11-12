@@ -1,0 +1,18 @@
+# harnessator project configuration (committed; harnessator.lock is its result)
+# Edit by hand or via `harnessator enable/disable/source/template` - commands
+# rewrite this file canonically, which drops hand-written comments.
+# Top-level scalars must stay above the [[source]] tables (TOML scoping).
+kind = "project"
+schema = 1
+targets = ["opencode", "claude"]
+templates = ["agentictools:minimal"]
+
+[[source]]
+  name = "agentictools"
+  git = "https://github.com/aignerdevelopment/agentictools.git"
+  ref = "main"
+  layer = "personal"
+
+[select]
+  [select.rule]
+    include = ["agentictools:18-docs-sync"]
