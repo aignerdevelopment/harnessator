@@ -1,0 +1,24 @@
+{
+  "SUPERPOWERS": {
+    "upstream": "https://github.com/obra/superpowers.git",
+    "bridge": "git@github.com:aignerdevelopment/superpowers.git",
+    "root": "skills",
+    "content": "skills"
+  },
+  "CURSOR_RULES": {
+    "upstream": "https://github.com/sanjeed5/awesome-cursor-rules-mdc.git",
+    "bridge": "git@github.com:aignerdevelopment/cursor-rules.git",
+    "root": "rules-mdc",
+    "content": "rules",
+    "allow_hits": true,
+    "hits_reviewed": "51 documentation-example findings, line-reviewed 2026-10-30, recorded in HARVEST-NOTES.md in the bridge"
+  },
+  "COPILOT_SKILLS": {
+    "upstream": "https://github.com/github/awesome-copilot.git",
+    "bridge": "git@github.com:aignerdevelopment/copilot-skills.git",
+    "root": "skills",
+    "content": "skills",
+    "allow_hits": true,
+    "hits_reviewed": "26 documentation-example findings, line-reviewed 2026-10-30, recorded in HARVEST-NOTES.md in the bridge"
+  }
+}
