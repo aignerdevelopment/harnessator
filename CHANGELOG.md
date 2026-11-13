@@ -1,0 +1,630 @@
+# Development Diary & Changelog
+
+harnessator's design history, distilled. The public repository starts as
+a single consolidated commit **by design** - the messy argumentation of
+development is squashed into this diary so every reader gets the *why*
+without needing the *thread*. Newest first.
+
+Attribution, honestly: this tool was built pair-style - Roland Aigner
+driving, an AI agent (in OpenCode) doing much of the typing and the
+record-keeping. That partnership is documented here, in this diary;
+the public commits deliberately carry one human author - no bot
+co-author trailers.
+
+## v0.14.2-beta
+
+**v0.14.1 shipped a minute ago; the machine's own configs refused to
+be read by it - so this is the lesson release.** Four field fixes:
+(1) the JSONC stripper now handles trailing commas (the real
+`opencode.jsonc` carries 1016 of them), block comments, and never
+chops `//` inside `"https://…"`; (2) the LIVE opencode schema
+(`providers`/package/settings/models) imports beside the documented
+singular one, and project-local `.jsonc` joins discovery - "import
+from the working environment" means working reality, not doc truth;
+(3) model aliases are TOML-safe and unique: feral ids like
+`openrouter:anthropic/claude-fable-5.1` produced dotted aliases that
+TOML parsed as nested keys with duplicates - aliases now sanitize to
+plain keys with collision counters, round-trip tested (render ->
+Parse must succeed); (4) `provider import claude opencode` (multiple
+harness tokens) was rejected by an over-strict one-arg check, and the
+probe's missing-auth line grew real ramps (name no auth_env? the
+message says set it; env not exported? the message names it).
+
+## v0.14.1-beta
+
+**The field taught the importer its schemas.** The v0.14.0 release
+could not read the real `~/.config/opencode/opencode.jsonc` on the
+author's own machine - two lessons in one file: (1) JSONC is not
+"JSON minus comment lines" - a naive `//` strip chops the `//` inside
+`"https://…"`, and the real file carried 1016 trailing commas and
+block comments besides; the stripper is now string-state-aware across
+comments AND trailing commas. (2) live opencode uses
+`{"providers": {…package/settings/models}}` while the docs describe
+`{"provider": {…npm/options}}` - the importer accepts BOTH, because
+"import from the working environment" means exactly that: reality
+first, documentation second. Project-local `opencode.jsonc` joins the
+discovery set. New regressions pinned by tests: URLs through the
+stripper, block comments, double-close commas, the live providers
+schema end to end.
+
+## v0.14.0-beta
+
+**`harnessator provider import <harness|*>` - bootstrap governance
+from what already works.** harvest taught components to flow from messy
+trees into governed sources; this is the same trick for the provider
+layer: read each installed harness's LIVE configuration (claude's
+settings env block, opencode's provider map with `{env:VAR}` auth refs,
+codex's `[model_providers.*]` with chat/responses wire_api mapping),
+emit provider profiles into a fresh source (git-initialized, one
+commit, immediately `file://`-consumable) or `--into` an existing
+corpus. **Multiple providers when the harness allows it** - opencode and
+codex map every configured provider, not a single winner. The security
+line is bright: env-var NAMES cross into `auth_env`, secret VALUES
+never leave their file - a literal `apiKeyHelper` or hardcoded key
+becomes a reported finding (and a rotation hint), never a manifest
+field. Harnesses with nothing local to import (copilot, cursor:
+server-side) or unsafe-to-import state (cline: values in global
+settings) each say so in one honest line; `*` expands to all nine.
+`--dry-run` plans without touching the filesystem; re-imports are
+skip-identical. Bootstrap trap closed on the way: `provider use` now
+auto-enables the selected provider component (a selected-but-disabled
+profile deadlocked the next `open` - the half-state a user just
+legitimately created could lock them out).
+
+## v0.13.1-beta
+
+**Every phase body speaks - even in a no-op run.** The owner's live
+`tune` transcript from a provider-less project showed phase
+`[6/7] model catalog` printing NOTHING while `auth` and `gateway
+probe` properly announced their skips: an empty section in a narrated
+checkup reads like a hang. tune.go's own comment already demanded
+"never lies even when phases self-skip" - the implementation had
+skipped the doctrine for exactly that phase. Fixed (skip announced,
+summary gains its `catalog` line either way), and the test now asserts
+the phase-speaks contract for the whole no-provider walk - a paste
+from real usage caught what nine suites missed: output is a
+contract.
+
+## v0.13.0-beta
+
+**Know before you enable: `harnessator profiles` (alias `groups`).**
+Profiles are a source's promise and until now reading that promise
+meant reading a manifest by hand. `profiles` prints what a source
+actually offers - every profile with its real membership (wildcards
+like `skill = "*"` expanded against the live component set, not the
+wishes), sizes, `[on]` markers for templates the project currently
+enables, `(always)` labels on rules you cannot drop, `!!` flags on ids
+a profile names that the source does not have - and URL mode
+(`profiles <git-url>`) inspects a repository BEFORE declaring it:
+manifest fetched, reported, nothing else written. The pin line shows
+pointer sources' second commit too, so an import-only surprise cannot
+hide.
+
+**Bare `enable <source>` now means something - and says so.** One
+profile: it is applied, announced. A `default` among several: applied,
+announced, others named. Several without `default`: refused with the
+list and the inspect command - never a guess. Same doctrine as every
+ramp in this tool: the machine states its choice in the sentence that
+makes it reviewable.
+
+Under the hood the assembly refactor gave discovery one shared truth
+(`app.ResolveSource` now serves project resolution and the URL
+surface), gitops learned to ask a remote for its HEAD branch instead
+of assuming `main`, and the documentation gate - built last round for
+the help doctrine - caught its first real omission: new commands
+without man/USAGE entries now fail CI the same minute they would ship
+a dead end.
+
+## v0.12.0-beta
+
+**`harnessator help` - the "why and in which order" layer moved inside
+the binary.** `help <command>` gives each dispatched command its deep
+topic: what it does, when you meet it in real life, and what it
+guarantees (the never-clobber, loud-skip, refuse-with-ramp doctrine in
+prose, next to the tool). `help workflow` condenses the guide corpus
+into typed-out journeys - quickstart, adopt, notes, pointers, ci,
+gateway, models, registry, hopper, switch, daily, review - and
+`help workflow <name>` walks one, with the full transcript guide
+referenced by path. Bare `help` now explains the two doors deeper.
+
+**The doctrine is now a mechanism**: `TestCommandHelpCoverage` parses
+the dispatch switch and refuses any command token without a topic
+(it caught two omissions in its first run - `mcp` and `help`
+itself - the gate working exactly as intended);
+`TestWorkflowGuidesExist` refuses workflows pointing at missing guides
+AND guides that silently skip their workflow entry (reference pages
+are an explicit, reviewed list). CONTRIBUTING states it, so the rule
+survives everyone's memory - including the author's.
+
+Along the way: a consolidation sweep fixed the documentation drift
+that accumulates at this cadence - the README still said "six
+harnesses" in three places while nine adapters ship, the shipped
+paragraph, JOURNEYS' scenario count, stale version pins. The audit
+greps are now part of the release ritual: docs say what the binary
+does, or CI says otherwise.
+
+## v0.11.3-beta
+
+**Nesting warning for fresh sources inside a donor repo.** The
+sleipniterm timeline's last manual step: `harvest <dirty-app> --name
+tools` places the new source INSIDE the donor worktree by default,
+turning the donor's next `git add -A` into embedded-repository
+confusion (their agent moved the source out by hand, and rightly
+published it as a sibling). Harvest now says so at publish time with
+both fixes offered (move it out, or ignore it in the donor) - another
+dead-end-turned-ramp, zero new flags.
+
+## v0.11.2-beta
+
+**Provenance that cannot lie: donor state is verified, not assumed.**
+The sleipniterm agent had to hand-correct an origin SHA because harvest
+recorded the donor's HEAD blindly - when an authors an `AGENTS.md`
+extraction into the worktree and harvests before committing, the label
+`url@sha:rules/x.md` pointed at a commit where `rules/x.md` did not
+exist. Now: every claimed commit is checked against the worktree
+(`git diff HEAD --name-only` + untracked listing, directory-aware),
+dirty components get an origin marked `(uncommitted)` - stating the
+harvest-time truth instead of an unfounded claim - the summary counts
+them, and `--require-committed` turns the finding into a hard refusal
+for teams whose CI wants the strict gate. Committing the donor later
+does not rewrite history (the old label was true at its time); new
+harvests from the clean repo claim the commit plainly. Tested against
+all three dirt shapes: modified, untracked, wholly-new directory.
+
+## v0.11.1-beta
+
+**The bestiary: `docs/guides/platform/layouts-in-the-wild.md`.** Seven
+species of real-world agent-configuration layout - the sedimentary
+`AGENTS.md`, the scattered forest, the excellent repo that never asked
+to be a package, the same-name twins, the legacy single-file dialects,
+the corporate registry, the managed-root loop - each with the scan
+output it actually produces, the ramp that applies, and what the tool
+guarantees on contact. Plus the one-screen slot matrix for all nine
+targets and a self-critical "honest gaps" section. Writing the page
+against real output caught a live bug: dotfile donors lost their stem
+and the verbatim-rule fallback slug collapsed `.cursorrules` to an id
+of `md` - now `cursorrules-md`, tested; the guide-transcription loop
+(effects observed, not imagined) earning its keep again. Plain-vs-
+`--with-notes` harvest semantics are demonstrated side by side in the
+runnable block, nested-note depth limits are documented rather than
+hidden, and the guides gate now executes 13 pages.
+
+## v0.11.0-beta
+
+**Three more harnesses, same honesty contract: gemini, copilot, cline.**
+The expansion adapters, in the order the field asked for. *Gemini CLI*:
+custom slash commands generated as `.gemini/commands/<id>.toml`
+(description + prompt, marker-guarded cleanup), the `GEMINI.md` managed
+block `@`-imports the active index (human text outside the block
+survives, byte for byte), MCP lands in `.gemini/settings.json` only when
+harnessator owns that file - when the human's model config lives there,
+the skip is loud and honest, not a clobber. *GitHub Copilot*: rules render
+to `.github/instructions/*.instructions.md` with `applyTo` frontmatter
+(hint `copilot.globs` to scope, `**/*` for always-on), prompts to
+`.prompt.md`, agents to `.agent.md`, MCP into BOTH `.vscode/mcp.json`
+(servers) and portable `.mcp.json` (mcpServers). *Cline*: rules link
+straight into `.clinerules/` (Cline composes every file there),
+prompts/workflows become `/workflows`, agents and MCP land under
+`.cline/`. Agents everywhere prefer a corpus-authored
+`agents/<target>/<id>.md` variant and fall back to the generic file -
+tuning stays authored, never synthesized; missing becomes a SKIP record.
+Per-target MCP configs extend the existing `servers.json` convention.
+The kickstart brief learned from its first external agent run
+(sleipniterm): publishing after an agent authored `rules/` must NOT add
+`--with-notes` - the untouched fossil would be heading-imported a second
+time beside the judgment work. The mission text and brief now say so;
+`check --json` on an unmanaged root is annotated as an honest finding,
+not damage.
+
+## v0.10.0-beta
+
+**Pointer sources: `[content]` - my paperwork, their bytes.** The bridge
+question, answered from the other side: instead of mirroring foreign
+repositories into pointer manifests we maintain (sync crons, deploy keys,
+license reviews per mirror), a source manifest can now POINT - the
+manifest repo stays yours (curation: `[discover]` globs, tags, profiles,
+descriptions), the component bytes are fetched straight from upstream at
+their own pinned ref, and the lock carries BOTH commits. `update`
+resolves and refreshes both halves; `check` verifies both trees offline;
+component digests trace the content commit, not the paperwork. Discovery
+re-runs against the fresh content checkout, so upstream growth appears
+on `update` with zero manifest edits - and pointing is not copying: the
+redistribution question that made three bridge refusals becomes "may we
+point?", usually answered yes. Content behind `[content]` is
+**import-only by construction**: `dev` refuses with the sanctioned moves
+(consume pinned; harvest a fork you own - vendoring is provenanced and
+license-nagged; `disable` theirs, `enable` yours, `setup` uninstalls the
+replaced content cleanly; PR upstream - every consumer gains the fix at
+its next update), and list/info carry the `(import-only)` badge. Non
+pointers whose upstream you cannot push declare the same honesty
+consumer-side: `editable = false` (declaring `editable = true` on a
+pointer is an error - their bytes are never yours). Source format v1.2
+(`schema = 3`; strict old binaries refuse the table, never
+half-interpret). The store clone of pointer content borrows the source's
+name namespace, so the round-35 identity guard protects both halves
+symmetrically. New guide: *Borrow, don't mirror*
+(`docs/guides/platform/pointer-sources.md`, CI-executed).
+
+## v0.9.1-beta
+
+**The store stopped lying: one name, two repositories is now a refusal -
+with both ramps printed.** The store is per-user and keyed by source
+*name*, so two donors sharing a basename (or a repo that moved) silently
+share one clone: the second project consumed the first project's content
+- digests, locks and green checks all the way. `harnessator setup` now
+compares the clone's origin against the configured URL (transport
+decoration normalized: https/ssh/scp-form, `.git`, default ports,
+`file://` vs path - same repo stays same repo, a *different* repo under
+the same name refuses) and shows the two real fixes: give the source its
+own `--name`, or `source forget <name>` - a new verb that drops the
+machine-local clone and its checkouts (dev overlay untouched) so the name
+can be handed over. `source add` warns at the moment of the mistake;
+`doctor` and the CI `check` gate find the alias offline; and the config
+verbs `source add|remove|forget|list` now run even mid-wedge, because a
+recovery ramp must not require the fetch it is recovering from.
+
+## v0.9.0-beta
+
+**The brief is a file now: `harnessator kickstart`.** A prompt printed
+to stderr scrolls away; a `HARNESSATOR-KICKSTART.md` beside the fossil
+says "work through me". One command generates a self-contained agent
+brief from a LIVE scan - findings (note files, decoded heading counts,
+near-misses, publishable components), the mission (split by concern,
+sanitize with an explicit list of what was removed, order
+identity/safety first, never edit the fossil), and the gate commands
+the tool owns. The dead-end abort now points at it instead of
+wall-of-texting the terminal. The agent drafts, the tool ratifies,
+you decide.
+
+## v0.8.0-beta
+
+**Dead ends became ramps.** The sleipniterm thread's last mile: "0
+components, nothing to harvest" is a dare, not an answer - so harvest
+grew `--with-notes`: programmatic decoding of agent-note files
+(AGENTS.md, CLAUDE.md, GEMINI.md, QWEN.md, .cursorrules) into rule
+components, one per top-level heading, fence-aware and CRLF-safe, an
+unstructured note imported as ONE verbatim rule rather than an
+interpretive dance, provenance recorded as `FILE § heading` - conflicts
+abort, re-runs skip-identical, and the hand-written original survives
+until a human retires it. When judgment (not layout) is what the file
+needs, every dead-end abort now prints the three ramps plus a
+paste-ready guided-tail prompt for any harness agent: split by concern,
+strip secrets, list the judgment calls - the agent drafts, the tool
+ratifies. A new guide walks it with the irreverence the genre deserves:
+*docs/guides/dev/legacy-notes-import.md*. The casual user's first
+session should end in a governed source, not a shrug - this is the
+adoption story, closed.
+
+## v0.7.3-beta
+
+**Harvest honors its directory promise - or makes no mess at all.** The
+Windows report (`--name sleipnitools` dying on a raw
+`harnessator.toml.tmp: path not found`) was two bugs wearing one coat:
+the output directory had only ever existed as a side effect of the
+first component copy - so an empty-roots harvest hit a bare filesystem
+error instead of an answer, and had it "succeeded" it would have
+published a pointless empty source repo. Now: `--name` creates the
+directory (parents included) up front, and zero recognizable
+candidates abort cleanly - nothing created - pointing at `scan`'s
+residuals and the guided tail, which is exactly where an
+AGENTS.md-only project belongs. The test suite caught a draft of this
+fix touching dry-run filesystem state, as designed.
+
+## v0.7.2-beta
+
+**Import candidates are visible again - and sharper.** The sleipniterm
+thread ended where it began: a hand-written AGENTS.md, the most
+terraform-import-shaped file there is, scanned to silence. v0.7's
+residual-noise fix had overreached and filtered root agent-note files
+out entirely. Corrected contract: in an UNMANAGED tree,
+`AGENTS.md / CLAUDE.md / GEMINI.md / QWEN.md / .cursorrules` are
+reported as residual *import candidates* (rule content lives wherever
+it lands - the guided tail classifies, the tool ratifies); harnessator's
+own generated pointers in managed trees remain invisible, and ordinary
+root files still never are residuals. The import story is whole again:
+scan finds, harvest publishes, residuals + guided tail judge, adopt
+converts the donor.
+
+## v0.7.1-beta
+
+**Residuals joined the text report.** The sleipniterm follow-up:
+content *inside* a recognized agent directory that matches no shape
+was visible only in `--json` - the last silence between "0 components"
+and knowing what to fix. `scan` now prints each `residual: <path> -
+<reason>` line and counts them in the root header. One adoption report,
+three layers of peek-a-boo diagnosed, none left standing.
+
+## v0.7.0-beta
+
+**Scan actually descends - and explains its silences.** Both fixes came
+from a real adoption report (a Windows project with `.agents/`,
+`.claude/` and `.codex-tmp` scanning to zero): `--recursive` had only
+ever scanned the literal arguments (discovery never ran), so one
+argument may now truly be a folder of checkouts. Silent zeros get a
+voice: near-miss notes name orphaned skill piles (skills directly in
+`.agents/` instead of the canonical `.agents/skills/`) and lookalike
+directories (`.codex-tmp`), each with the concrete fix. Residual noise
+is scoped to named agent dirs - `AGENTS.md` at a project root is an
+ordinary file, not a flag (and no longer a doubled one). And the
+classic shell pitfall, a newline-joined path list arriving as ONE
+argument, is now split into the intended roots by scan and harvest
+alike instead of dying with "not a readable directory".
+
+## v0.6.0-beta
+
+**`harnessator selfupdate` - the tool can move itself now.** Checks the
+project's GitHub releases (API first, unauthenticated `releases/latest`
+redirect as the rate-limit fallback - same hardening as the
+installer), verifies the platform asset against the release's
+`checksums.txt`, smoke-runs the downloaded binary's `version`, and only
+then swaps it in, keeping the previous binary as `*.old` (a rename that
+is also the only legal way to replace a running executable on
+Windows). `--check-only` answers with output and exit code
+(0 = up to date, 1 = update available). `dev` builds refuse politely.
+The old decision against a self-update command is hereby reversed by
+its author: the naming collision with the lockfile `update` was the
+argument - `selfupdate` resolves it, and the release pipeline now
+provides the artifacts this command consumes.
+
+## v0.5.0-beta
+
+**`harnessator tune` - the guided checkup that also tells the truth
+about models.** Seven narrated phases take the project from "probably
+fine" to verified: config, pin freshness, auth env vars (names only -
+a missing one gets the export line and, interactively, a
+this-run-only paste that is never stored), policy/dialect consistency,
+live gateway probes per API style, catalog reconciliation against
+what is actually reachable, and a re-render - closing with the same
+gate `harnessator check` enforces. Catalog corrections never mutate a
+pinned checkout: tune starts a dev overlay, edits the provider profile
+there (comments survive, the parser re-validates before the rename)
+and leaves upstreaming to contribute. `--check-only` reports,
+`--yes` automates, `--no-probe` stays offline.
+
+## v0.4.0-beta
+
+**Live discovery (source format v1.1).** A source manifest can now
+declare content *families* instead of enumerating components:
+`[discover] skill = "skills/*"` registers every skill directory at load
+time, description read from its frontmatter. Nothing is copied into the
+manifest, so a pointer manifest for a third-party collection cannot
+drift - the objection that closed our first upstream PR is answered by
+the format itself. Explicit entries always win over their discovered
+twins, so curation (tags, targets, unexcludable rules) survives the
+directive. `schema = 2` gates the feature: old binaries reject the
+manifest loudly instead of silently seeing zero components.
+
+**The bridges run on pointers.** All three public bridges
+(superpowers, cursor-rules, copilot-skills) adopted the pointer form
+and were live-synced against upstream - which immediately caught the
+drift it is designed for (awesome-copilot grew 448 -> 455 skills in
+days). A `Bridge refresh` workflow keeps them current on demand:
+content syncs, every gate re-validates, and consumers move only when a
+new bridge tag is deliberately cut.
+
+**Releases became self-service.** A pushed tag now triggers a GitHub
+Actions release pipeline: all five platform archives + checksums built
+on the tag's own commit, the packaged binary self-testing its version
+stamp, notes extracted from this diary's matching section, and the
+release created (or its assets refreshed) without a human UI step.
+`workflow_dispatch` covers re-releasing any existing tag on demand.
+This release (v0.4.0-beta) is the pipeline's first live run.
+Deliberately unchanged: the publication snapshot builder
+(`scripts/publish.sh`) stays a local, human-reviewed act - deciding
+what private history must *not* become public is exactly the step a
+pipeline must not automate.
+
+## v0.3.0-beta
+
+**Installer robustness.** Latest-release resolution retries and falls
+back to the plain `github.com/…/releases/latest` redirect when the
+per-IP rate-limited API is unavailable - shared CI runner IPs hit
+exactly that, and the redirect path is not rate-limited.
+
+**Harvest the whole forest.** `scan --recursive` and `harvest --recursive`
+treat each path as a tree: embedded agent-config projects are
+discovered (marker dirs `.claude/`, `skills/`, `rules/`, `agents/`, …
+or loose `.mdc` files), harvested across all of them, and deduplicated
+by content digest - the "several skills in several projects" cold start
+as one command. Donor recognition gained nested `.cursor/rules` groups
+(group-prefixed ids) and corpus-convention pile directories, unlocking
+public rule collections that no fixed layout could see. A dry-run
+without `--name` plans in memory and writes nothing.
+
+**Harvest keeps attribution.** A donor's LICENSE and NOTICE files now
+travel into the published source (MIT-style text survives copying only
+when it travels with the copy), component `origin` labels are
+machine-neutral (donor remote URL + commit, never your absolute paths),
+and the package `license`/`homepage` fields fill from what was found -
+with an ATTENTION line when a donor ships no license at all.
+
+**Cursor rule packs, glob-safe.** The `.mdc` lift now respects commas
+inside brace alternations: `**/*.{jsx,tsx}` round-trips intact. The bug
+was found by harvesting a real collection, and the regression test came
+from that same file.
+
+**A second public source.** The CC0 cursor-rules collection (241 curated
+rules) is published as a pinned bridge source with per-stack profiles
+(`essentials`, `web-react`, `python-data`, `backend-go`, `devops`,
+`ml-core`) - registry-scale content, chosen deliberately, never
+enabled-blind.
+
+## v0.2.0-beta
+
+**Scope layers became physical.** Precedence is no longer a label on one
+file: five optional files - corporate (`/etc/harnessator/config.toml`),
+team (`harnessator.team.toml`), project (`harnessator.toml`), personal
+(`~/.harnessator/personal.toml`) and local (`.harnessator/local.toml`,
+per-project, gitignored) - merge into one effective config. Additive
+semantics: sources union with a hard conflict on same-name/different-URL,
+templates and selects concatenate in ascending precedence, the highest
+layer naming a provider wins, any strict corporate lock wins. `enable`,
+`disable` and `source add` route their writes by `--layer`; `harnessator
+layers` makes the merge visible; provenance names the introducing file
+(`[via team]`) - which is what makes "embedded-me" and "ux-me" share the
+corporate sources per task without crosstalk.
+
+**User journeys, and the honest word for the phase.**
+`docs/guides/JOURNEYS.md` walks four personas - solo developer, team lead
+taming sprawl, platform engineer, vibe coder - through the guide set; a
+second day-in-the-life episode follows the tool-hopper: three harnesses
+off one pinned content, a per-task local layer, MCP self-inspection. The
+README status now says what is true: *beta means use it today* - formats
+frozen at v1, a copy-pasteable quick tour that runs against the published
+corpus with no registry and no account.
+
+## v0.1.0-beta
+
+**Local-first registry.** `harnessator index build|search|show` walks the
+store's pinned sources into one rebuildable JSON index
+(`~/.harnessator/cache/index.json`) with full provenance per component
+(git, ref, commit). Search and show run without a project and without
+network. The registry stays a *format*, not a service: no server is ever
+required, and a corporate hub, if one is wanted, is just a cron job over
+the same index builder.
+
+**MCP server for agents.** `harnessator mcp serve` speaks JSON-RPC 2.0
+over stdio (newline-delimited, protocol `2024-11-05`) with zero added
+dependencies. Five read-only tools - `search`, `list_active`, `why`,
+`component_content`, `policy_status` - let an agent inside a configured
+project introspect its own harness configuration; `component_content`
+reads the exact pinned checkout the lock digests cover. Mutations stay
+deliberately CLI-only. The server ships as an `mcp` component in the
+example source, so `setup` wires it into Claude Code, opencode and Codex
+natively.
+
+**Policy-enforcement gate.** `harnessator check` is the automation
+surface: offline (lock pins only, never fetches), one exit code,
+`--json` for pipelines. It validates strict model policy, lock/digest
+integrity and installed-state drift in one command.
+`--install-hook pre-commit|pre-push` writes a managed, self-skipping
+block into `.git/hooks/` - it refuses to clobber or delete foreign
+hooks, because honesty extends to a project's existing tooling.
+
+**Documentation as a gate, not a promise.** Every command verb and every
+flag is machine-checked against `USAGE.md` and the man pages
+(`internal/cli/docs_test.go`); the pages must render under groff; the
+pitch must keep up with the code. Docs drift is a build failure.
+
+## 2026-10-19 — governance: styles and dialects
+
+Provider profiles went through one deliberate breaking redesign *before
+anyone else used them* (migration cost is zero exactly once): endpoints
+are keyed by **API style** - `openai-compatible`,
+`anthropic-compatible`, `openai-responses` - not by harness product. A
+LiteLLM-style gateway exposing several protocol families at different
+paths is data, not code. Rendering moved into one **dialect** per
+governance-capable target (opencode, claude, codex): dialects declare a
+style priority and emit pure-data fragments
+(`Result{JSON, Env, TOML}`); harness conventions (npm packages by style,
+Anthropic tier-alias env vars, codex `wire_api`) are tables inside the
+dialects. Capability = registration: targets without a dialect, or a
+profile without a speakable style, report a loud skip - never a silent
+drop.
+
+Decisions taken and logged here so they are not relitigated: Go `.so`
+plugins rejected (they would break the static, cross-compiled,
+single-binary distribution and the git-review + digest supply chain);
+out-of-process adapters deferred, not rejected - the **extraction
+criterion** is the first third-party adapter that needs releases
+out-of-band with the core, and every interface crossing the adapter seam
+is pure data so that extraction stays a transport wrapper. A hosted
+curated artifact store is explicitly *parked*: the registry is the
+format; custody services can come much later.
+
+## 2026-10-19 — harvest: publishing what you already have
+
+The cold-start problem: teams adopted AI harnesses before any tool
+existed, so skills, rules and prompts are scattered across project trees
+- duplicated, diverged, half-secret. `harnessator scan` is the read-only
+half: it classifies components by capability recognition (layout
+knowledge lives next to each adapter's *writer*, so reading and writing
+can never drift apart), groups copies by content digest, flags
+cross-project divergence and masked secret/path findings, and emits a
+versioned JSON envelope built for dashboards.
+
+`harnessator harvest` is the write half: it turns candidates into a
+validated, git-ready source repository. Inputs are never modified;
+every conflict, sanitize finding and invalid id aborts **before any
+write**; identical copies merge; divergent copies need an explicit
+`--prefer newest|largest`; re-runs are idempotent; the written manifest
+self-validates. Config-embedded content (MCP server definitions in
+harness configs, hook scripts referenced from Claude settings) is
+lifted canonically; what cannot be classified lands in a machine-readable
+**residual report** for the guided tail - a skill (`harnessator-harvest`)
+plus an agent that classify the leftovers, while the tool ratifies:
+nothing becomes real until the deterministic validation passes. Agent
+drafts, tool ratifies - that is the whole security model of the loop.
+
+`--adopt` turns every donor project into a consumer of the published
+source: managed links replace the scattered originals, a original is
+only ever deleted after its content matches the published digest;
+divergent originals stay (and `setup` loudly skips the blocked
+destination), generated-path collisions go to `*.pre-adopt` backups.
+
+## 2026-10-18 — the core: git as the only server
+
+Architecture decided up front and still holding: a single static Go
+binary, stdlib-first (toml + x/mod + x/sys are the only dependencies),
+cross-compiling for linux/mac/windows; the **system git** does the
+gitting (native auth, credential helpers, worktrees - go-git rejected);
+a per-user store (`~/.harnessator`) of pinned, read-only checkouts;
+projects keep only committed `harnessator.toml` + `harnessator.lock`;
+`harnessator.lock` pins exact commits *and* per-component sha256 digests
+so that post-approval changes in a source are detectable in the diff of
+a lockfile bump. Scopes layer corporate → team → project → personal;
+profiles and templates make bulk selection reviewable; `why` answers
+provenance for any enablement or skip.
+
+Adapters are honest by construction: a component type a harness has no
+native slot for is reported as a `SKIP`, generated files are written
+whole or spliced between unmistakable managed markers, human-owned
+entries in shared files are never touched, and drift in any direction
+fails `verify` (and, in CI, the build). Windows gets NTFS junctions
+instead of symlinks (no admin/developer mode) plus digest-verified
+copies for single files - same guarantees, native mechanism.
+
+Governance landed as the differentiator: provider profiles (endpoints +
+approved model catalog + aliases) and policy profiles (strict by default,
+overridable only by an explicit higher layer). Enforcement happens
+inside the tool, not in a dashboard: the opencode model picker is
+narrowed to the allowed set, Claude Code gets the endpoint via env with
+**sub-agent model pinning** (`CLAUDE_CODE_SUBAGENT_MODEL` - the
+"sub-agents ignore the configured model" collision, solved), Codex gets
+managed `[model_providers]` stanzas. Secret values never touch git, the
+store or any generated artifact - only env var *names* do.
+
+Development has always dogfooded: this very repository is managed by
+harnessator - committed lock, generated harness directories, and (since
+the beta tooling) `harnessator check --json` returns `{"ok":true}` as a
+real gate on every clone.
+
+## 2026-10-17 — origin: configure harnesses like infrastructure
+
+The starting observation: every AI coding harness (Claude Code, Codex,
+opencode, Cursor, pi, Antigravity, ...) wants its own config files in
+its own folders, teams duplicate rules by copy-paste, the approved model
+list lives in a wiki nobody reads, and none of it is reviewable or
+reproducible. The shape that fixes this is the one infrastructure
+already trusts: declarative config in git, dependency-style pinning,
+plan/apply, drift detection, merge-request review. Hence the standing
+pitch - **Terraform for AI coding agents** - while being clearer about
+what is *not* copied: no cloud API, no provider plugins, no state
+backend. Git is the only server.
+
+## Stability policy at beta
+
+- **Frozen (breaking = deliberate decision):** the source format -
+  manifest schema, `(git, ref, manifest)` identity, lockfile semantics
+  with commit pins + sha256 component digests, canonical API styles,
+  reference grammar. This is what third-party sources and future tooling
+  build against.
+- **Stable-ish, may evolve:** adapter layouts per target (driven by what
+  each harness actually consumes), the web/TUI surfaces, dev/contribute
+  convenience flows.
+- **Planned:** expansion adapters (gemini, cline, copilot, windsurf -
+  each one dialect + layout data now), full-screen TUI, gallery view,
+  the project homepage.
+
+Want a component source published, an adapter for your harness, or a
+policy story that does not fit? Open an issue - loud opinions welcome.
