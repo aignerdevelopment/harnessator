@@ -1,0 +1,82 @@
+# Bridge refresh: keep the pinned public sources (superpowers,
+# cursor-rules, copilot-skills) synced with their upstreams, from
+# here. Runs bridge-sync.py (same tool the maintainers use locally):
+# pointer manifests re-register live (nothing to edit), explicit
+# manifests merge new components via "harvest --into", and NOTHING
+# reaches consumers until a new bridge tag is cut - deliberately, via
+# the new_tag input, never as a side effect. Sanitize findings always
+# block unless a pre-review is recorded in scripts/bridges.json.
+#
+# Needs one repository secret per bridge (Settings -> Secrets ->
+# Actions): BRIDGE_KEY_SUPERPOWERS, BRIDGE_KEY_CURSOR_RULES,
+# BRIDGE_KEY_COPILOT_SKILLS - each the PRIVATE half of the bridge
+# repo's deploy key (write access), which this repo's checkout already
+# pairs with.
+name: Bridge refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      bridge:
+        description: bridge to refresh
+        type: choice
+        options: [SUPERPOWERS, CURSOR_RULES, COPILOT_SKILLS]
+        required: true
+      upstream_ref:
+        description: upstream tag/branch (empty = newest v* tag, else default branch)
+        default: ""
+      new_tag:
+        description: bridge tag to cut after a real sync (empty = move main only)
+        default: ""
+      dry_run:
+        description: sync + validate locally, push nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bridge-refresh-${{ inputs.bridge }}
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      BRIDGE: ${{ inputs.bridge }}
+      UPSTREAM_REF: ${{ inputs.upstream_ref }}
+      NEW_TAG: ${{ inputs.new_tag }}
+      HARNESSATOR_BIN: ${{ github.workspace }}/harnessator
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: build the tool that validates every bridge
+        run: go build -o "$HARNESSATOR_BIN" ./cmd/harnessator
+
+      - name: stage the bridge deploy key
+        env:
+          KEY: ${{ secrets[format('BRIDGE_KEY_{0}', inputs.bridge)] }}
+        run: |
+          mkdir -p ~/.ssh
+          if [ -z "$KEY" ]; then
+            echo "no BRIDGE_KEY_${BRIDGE} secret configured" >&2
+            exit 1
+          fi
+          printf '%s\n' "$KEY" > ~/.ssh/bridge_key
+          chmod 600 ~/.ssh/bridge_key
+
+      - name: sync
+        run: |
+          set -o pipefail
+          ARGS=(--bridge "$BRIDGE" --key ~/.ssh/bridge_key)
+          if [ -n "$UPSTREAM_REF" ]; then ARGS+=(--upstream-ref "$UPSTREAM_REF"); fi
+          if [ -n "$NEW_TAG" ]; then ARGS+=(--new-tag "$NEW_TAG"); fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS+=(--dry); fi
+          python3 scripts/bridge-sync.py "${ARGS[@]}" | tee refresh.log
+          echo '### refresh result' >> "$GITHUB_STEP_SUMMARY"
+          tail -12 refresh.log >> "$GITHUB_STEP_SUMMARY"
