@@ -1,0 +1,65 @@
+# Publication-facing CI: the same gate matrix the development pipeline
+# runs (test + docs drift gate, man pages, cross-builds). Windows/macOS
+# runner execution is postponed - the cross-build
+# jobs compile-verify those targets from ubuntu.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      # includes internal/cli/docs_test.go - the usage/man drift gate
+      - run: go test -count=1 ./...
+
+  man:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y groff
+      - run: make man-check
+
+  cross:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: windows, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -o bin/harnessator-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/harnessator
+
+  # the installer is documentation too - it must run, not just parse.
+  # (Windows install.ps1 stays statically reviewed: no PowerShell runner
+  # here yet, same honest deferral as the Windows junction CI.)
+  installer:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.sh end-to-end against the latest release
+        run: |
+          bash install.sh --dir "$RUNNER_TEMP/bin"
+          "$RUNNER_TEMP/bin/harnessator" version
