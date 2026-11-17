@@ -1,0 +1,15 @@
+the embedded keys in the "file:" environment in files keys do not work:
+harnessator provider modelupdate --all
+opencode/litellm: openai-compatible https://api.ai.mytkhgroup.com/v1 (key: inline (not shown))
+FAIL  opencode/litellm: HTTP 401: the gateway rejected the key - check the VALUE of inline (not shown) (right gateway, right key?)
+opencode/litellm-aigner: openai-compatible https://llm.aignerdev.org/v1 (key: inline (not shown))
+FAIL  opencode/litellm-aigner: HTTP 401: the gateway rejected the key - check the VALUE of inline (not shown) (right gateway, right key?)
+
+one of the entries:    "litellm-aigner": {
+      "name": "LiteLLM (llm.aignerdev.org)",
+      "settings": {
+        "baseURL": "https://llm.aignerdev.org/v1",
+        "apiKey": "`{file:~/.secrets/aigner-litellm-key}`"
+      },
+
+and the keyhelper api keys for claude can be read verbatim (minus the "echo ") from the config file
