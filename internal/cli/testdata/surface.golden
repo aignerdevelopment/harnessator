@@ -1,0 +1,37 @@
+# harnessator public surface - frozen grammar (see docs/wiki/Contract-v1.md)
+# change it deliberately:
+#   HARNESSATOR_UPDATE_SURFACE=1 go test ./internal/cli/ -run TestPublicSurface
+commands:
+  version: (no flag grammar)
+  validate: --check-paths
+  setup: --config --dry-run
+  verify: --config
+  doctor: --config
+  tune: --check-only --config --no-probe --yes
+  selfupdate: --check-only
+  list: --all --config
+  search: --config
+  layers: --config
+  index: (no flag grammar)
+  mcp: (no flag grammar)
+  check: --config --install-hook --json --quiet --remove-hook
+  scan: --json --recursive
+  harvest: --adopt --allow-hits --commit --dry-run --into --name --prefer --recursive --require-committed --with-notes
+  kickstart: --force
+  profiles: --config
+  info: --config
+  why: --config
+  init: --force --manifest --ref --source --targets
+  enable: --config --layer
+  disable: --config --layer
+  source: (no flag grammar)
+  dev: --branch --config --force
+  contribute: --body --config --target-branch --title
+  provider: --all --allow-removals --config --dry-run --into --name --verbose
+  serve: --config --port
+  tui: --config
+  help: (no flag grammar)
+help-topics:
+  check contribute dev disable doctor enable harvest help index info init kickstart layers list mcp profiles provider scan search selfupdate serve setup source tui tune validate verify version why
+workflows:
+  adopt ci daily gateway hopper models notes pointers provider-ops quickstart registry review switch

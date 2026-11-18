@@ -1,0 +1,30 @@
+# Maintainer: Roland Aigner <insert your AUR-facing email here>
+# harnessator-bin - the Arch User Repository route (docs/wiki/Distribution.md).
+# version + checksums are auto-bumped by the release pipeline
+# (scripts/bump-packages.sh) from the release's checksums file;
+# the `# bump:` markers are the machine anchors - do not hand-edit values.
+_pkgname=harnessator
+pkgname=harnessator-bin
+_ver=0.15.5-beta # bump:version
+_tag="v${_ver}"
+pkgver=${_ver//-/.} # AUR pkgver disallows hyphens: 0.15.5.beta
+pkgrel=1
+pkgdesc="Package manager and policy layer for AI coding-harness configuration"
+arch=('x86_64' 'aarch64')
+url="https://github.com/aignerdevelopment/harnessator"
+license=('Apache-2.0')
+provides=("${_pkgname}")
+conflicts=("${_pkgname}")
+source_x86_64=("harnessator-${_tag}-linux_amd64.tar.gz::${url}/releases/download/${_tag}/harnessator_${_tag}_linux_amd64.tar.gz")
+source_aarch64=("harnessator-${_tag}-linux_arm64.tar.gz::${url}/releases/download/${_tag}/harnessator_${_tag}_linux_arm64.tar.gz")
+sha256sums_x86_64=('141689d3154aa15899f3399ddd6b022ca825713619a760ac235839b9d9072b1b') # bump:sha:linux_amd64
+sha256sums_aarch64=('12845931b1671ac00f768b8db4429751212a0da027f145d93f703de9d4a1a071') # bump:sha:linux_arm64
+
+package() {
+  local asset_arch=amd64
+  [ "${CARCH}" = "aarch64" ] && asset_arch=arm64
+  install -Dm755 "${srcdir}/harnessator_${_tag}_linux_${asset_arch}" \
+    "${pkgdir}/usr/bin/harnessator"
+  install -Dm644 "${srcdir}/LICENSE" \
+    "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}
