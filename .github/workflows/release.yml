@@ -1,0 +1,94 @@
+# Release pipeline: a pushed tag becomes a built-and-published release
+# without any human UI step. Triggered by publish.sh tag pushes, or run
+# manually (Actions -> Release -> Run workflow -> tag) to (re)build any
+# existing tag. Notes come from the matching CHANGELOG.md section - the
+# public diary doubles as the release narrative. Releases are created
+# WITHOUT the prerelease flag on purpose: the installers resolve
+# "latest", and GitHub's /releases/latest skips prereleases.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing tag to (re)release, e.g. v0.3.0-beta"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      INPUT_TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: resolve tag
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            git checkout -q "refs/tags/$INPUT_TAG"
+            echo "TAG=$INPUT_TAG" >> "$GITHUB_ENV"
+          else
+            echo "TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+          fi
+
+      - name: build platform assets
+        run: make dist VERSION="$TAG"
+
+      - name: self-test the packaged binary
+        run: |
+          mkdir -p /tmp/relcheck
+          tar -xzf "dist/harnessator_${TAG}_linux_amd64.tar.gz" -C /tmp/relcheck
+          "/tmp/relcheck/harnessator_${TAG}_linux_amd64" version | grep -q "$TAG"
+
+      - name: extract release notes
+        run: |
+          awk -v t="$TAG" '
+            $0 == "## " t { p = 1; next }
+            p && /^## /  { exit }
+            p            { print }
+          ' CHANGELOG.md > /tmp/notes.md
+          if [ -s /tmp/notes.md ]; then
+            {
+              echo ""
+              echo "## Install this release"
+              echo ""
+              echo '```sh'
+              echo "curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/install.sh | bash -s -- --version $TAG"
+              echo '```'
+            } >> /tmp/notes.md
+            echo "NOTES=--notes-file /tmp/notes.md" >> "$GITHUB_ENV"
+          else
+            echo "NOTES=--generate-notes" >> "$GITHUB_ENV"
+          fi
+
+      - name: create or refresh release
+        run: |
+          ASSETS=( "dist/harnessator_${TAG}_checksums.txt"
+                   dist/harnessator_"${TAG}"_*.tar.gz
+                   dist/harnessator_"${TAG}"_*.zip )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          else
+            gh release create "$TAG" "${ASSETS[@]}" \
+              --target "$(git rev-parse HEAD)" \
+              --title "$TAG" $NOTES
+          fi
+          gh release edit "$TAG" --latest
