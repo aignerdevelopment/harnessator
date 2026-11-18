@@ -5,7 +5,7 @@
 # the `# bump:` markers are the machine anchors - do not hand-edit values.
 _pkgname=harnessator
 pkgname=harnessator-bin
-_ver=0.15.5-beta # bump:version
+_ver=0.16.0-beta # bump:version
 _tag="v${_ver}"
 pkgver=${_ver//-/.} # AUR pkgver disallows hyphens: 0.15.5.beta
 pkgrel=1
@@ -17,8 +17,8 @@ provides=("${_pkgname}")
 conflicts=("${_pkgname}")
 source_x86_64=("harnessator-${_tag}-linux_amd64.tar.gz::${url}/releases/download/${_tag}/harnessator_${_tag}_linux_amd64.tar.gz")
 source_aarch64=("harnessator-${_tag}-linux_arm64.tar.gz::${url}/releases/download/${_tag}/harnessator_${_tag}_linux_arm64.tar.gz")
-sha256sums_x86_64=('141689d3154aa15899f3399ddd6b022ca825713619a760ac235839b9d9072b1b') # bump:sha:linux_amd64
-sha256sums_aarch64=('12845931b1671ac00f768b8db4429751212a0da027f145d93f703de9d4a1a071') # bump:sha:linux_arm64
+sha256sums_x86_64=('3785a71cb6b5509066eea0060137cdbdfaad521061e3cf90a99b23e6859444c3') # bump:sha:linux_amd64
+sha256sums_aarch64=('830530b22e9dd0b806b08a24e1ba0674f8e939af85c4e3a7e6859d63587c5134') # bump:sha:linux_arm64
 
 package() {
   local asset_arch=amd64
