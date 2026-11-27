@@ -10,28 +10,28 @@
 class Harnessator < Formula
   desc "Package manager and policy layer for AI coding-harness configuration"
   homepage "https://github.com/aignerdevelopment/harnessator"
-  version "0.16.1-beta" # bump:version
+  version "1.0.0" # bump:version
   license "Apache-2.0"
 
   on_macos do
     on_arm do
       url "https://github.com/aignerdevelopment/harnessator/releases/download/v#{version}/harnessator_v#{version}_darwin_arm64.tar.gz"
-      sha256 "26d947aeb857515e20c9767e30d44fb30014a640b0ee56a7009b101358eb9caa" # bump:sha:darwin_arm64
+      sha256 "7a695c401583def001fb04dca4f1c48433f81535ab0c541e133e509a0b2ae0b5" # bump:sha:darwin_arm64
     end
     on_intel do
       url "https://github.com/aignerdevelopment/harnessator/releases/download/v#{version}/harnessator_v#{version}_darwin_amd64.tar.gz"
-      sha256 "573e3b705fbd421b055b7196b96f6fe276d11289d2c1ef26b887a6a6e40a2060" # bump:sha:darwin_amd64
+      sha256 "cf6b74b137c7e3475e736f4c806fa4589a9f14242c80dc503f65872e28333057" # bump:sha:darwin_amd64
     end
   end
 
   on_linux do
     on_arm do
       url "https://github.com/aignerdevelopment/harnessator/releases/download/v#{version}/harnessator_v#{version}_linux_arm64.tar.gz"
-      sha256 "a4e50e4e85aab79bc140a74a0b47c5f25d8b776a9429b6c2c6d8d09953cdfbb3" # bump:sha:linux_arm64
+      sha256 "eafcc7b05b90fdab151b07613db180fdefaaebc6c05276351119e47e562e1b18" # bump:sha:linux_arm64
     end
     on_intel do
       url "https://github.com/aignerdevelopment/harnessator/releases/download/v#{version}/harnessator_v#{version}_linux_amd64.tar.gz"
-      sha256 "a94e7cd37fc6e8b2dd013e7aae51c432ad338df212b6a663a15740d8cc1ac20c" # bump:sha:linux_amd64
+      sha256 "4259dfec67961fcc32fa355013e69d62de1917f1632ca6ff99401ac4807d1046" # bump:sha:linux_amd64
     end
   end
 
