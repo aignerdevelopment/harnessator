@@ -1,0 +1,20 @@
+{
+  "servers": {
+    "harnessator": {
+      "config": {
+        "claude": {
+          "command": "harnessator",
+          "args": ["mcp", "serve"]
+        },
+        "opencode": {
+          "type": "local",
+          "command": ["harnessator", "mcp", "serve"]
+        },
+        "codex": {
+          "command": "harnessator",
+          "args": ["mcp", "serve"]
+        }
+      }
+    }
+  }
+}
