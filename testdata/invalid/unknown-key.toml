@@ -1,0 +1,11 @@
+kind = "project"
+schema = 1
+
+[[source]]
+name = "a"
+git = "https://example.test/a.git"
+ref = "~v1.0"
+
+targets = ["opencode", "opencode"]
+
+bogus_top_level_key = 1

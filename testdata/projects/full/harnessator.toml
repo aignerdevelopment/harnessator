@@ -1,0 +1,20 @@
+kind = "project"
+schema = 1
+
+targets = ["opencode", "claude"]
+templates = ["agentictools:full"]
+
+[[source]]
+name = "agentictools"
+git = "https://github.com/aignerdevelopment/agentictools.git"
+ref = "main"
+layer = "personal"
+
+[select.rule]
+exclude = ["10-code-style"]
+
+[provider]
+profile = "agentictools:provider/litellm-demo"
+
+[policy]
+profiles = ["agentictools:policy/models-strict"]

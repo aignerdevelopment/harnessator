@@ -1,0 +1,18 @@
+# Provider profile component (harnessator format v1: endpoints keyed by
+# API style, not harness product; see internal/dialect). Env KEY names
+# only - never secret values (rule 07).
+
+name = "litellm-demo"
+default_model = "big"
+auth_env = "LITELLM_API_KEY"
+
+[styles.openai-compatible]
+base_url = "https://litellm.example.test/v1"
+
+[styles.anthropic-compatible]
+base_url = "https://litellm.example.test/anthropic"
+
+[models]
+big = "claude-sonnet-5"
+fast = "claude-haiku-5.5"
+smart = "gpt-5.2"
