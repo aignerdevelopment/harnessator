@@ -1,0 +1,27 @@
+kind = "source"
+schema = 1
+
+# harnessator's own agent-facing components - proof that multi-source repos
+# work and the canonical home for skills that drive the tool itself.
+# Consume from any project:
+#   harnessator source add <this-repo-url> --name harnessator \
+#       --manifest source/harnessator
+#   harnessator enable harnessator:default
+
+[package]
+name = "harnessator"
+description = "harnessator's own agent components: skills that drive the tool."
+
+[profiles.default]
+skill = ["harnessator-harvest"]
+
+[component.skill."harnessator-harvest"]
+path = "skills/harnessator-harvest"
+description = "Guided harvest tail: classify what scan/harvest left in harvest-report.json, then ratify."
+
+[component.mcp."harnessator"]
+path = "mcp/servers.json"
+key = "harnessator"
+description = "The harnessator MCP server (harnessator mcp serve): read-only queries over your own harness config - search, list_active, why, component_content, policy_status."
+targets = ["claude", "opencode", "codex"]
+tags = ["registry", "governance"]
